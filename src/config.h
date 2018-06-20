@@ -1,3 +1,5 @@
+#include <FS.h>
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <DNSServer.h>
 #include <ESP8266HTTPUpdateServer.h>
@@ -8,10 +10,10 @@
 #include <IRsend.h>
 #include <PubSubClient.h>
 #include <RgbIrLed.h>
-#include <stdint.h>
 #include <WiFiClient.h>
 #include <WiFiUdp.h>
 #include <NTPClient.h>
+#include "fauxmoESP.h"
 
 #ifndef config_h
 #define config_h
@@ -290,6 +292,9 @@ uint16_t DISCRETE_OFF[68] = {7988,3981,504,504,504,1486,504,1486,504,504,504,148
 #define LEDStrip                 0
 #define mqttTopicAmbiLite        "/IRControl/AmbiLite"
 
+#define  MOVIETIME               "Movie Time"
+#define YOUTUBE                  "Youtube"
+#define  TV                      "TV"
 #define JSON_BUF_SIZE            256
 
 //byte xbmchost[] = {192,168,1,105};

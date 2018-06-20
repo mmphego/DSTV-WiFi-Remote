@@ -1,7 +1,6 @@
 
 #include "config.h"
 
-
 // Setup the ir pin
 IRsend irsend(IRPin);
 //Type 0 is IR remote APA1616 24 Button Remote
@@ -16,7 +15,6 @@ WiFiClient kodiclient;
 // initialise webserver
 ESP8266WebServer httpServer(80);
 MDNSResponder mdns;
-//ESP8266WebServer server(80);
 ESP8266HTTPUpdateServer httpUpdater;
 
 WiFiUDP ntpUDP;
@@ -27,6 +25,7 @@ WiFiUDP ntpUDP;
 //NTPClient timeClient(ntpUDP, "us.pool.ntp.org", 3600, 60000);
 NTPClient timeClient(ntpUDP, "ntp1.meraka.csir.co.za", 7200, 60000);
 
+fauxmoESP fauxmo;
 
 // Function declaration
 void TxCode(uint16_t irSignal[68]);
@@ -37,6 +36,7 @@ void setupMQTTclient();
 void kodiRunning();
 void setPage();
 String getPage();
+void fauxmoCallback(uint8_t device_id, const char * device_name, bool state);
 
 void setup() {
   irsend.begin();
@@ -63,6 +63,14 @@ void setup() {
   setupMQTTclient();
   setPage();
 
+  // -----------------------------------------------------------------------------
+  // Alexa Device Names
+  // -----------------------------------------------------------------------------
+  // Fauxmo
+  fauxmo.addDevice("TV");
+  fauxmo.addDevice("Youtube");
+  fauxmo.addDevice("Movie Time");
+  fauxmo.onMessage(fauxmoCallback);
 }
 
 void setupMQTTclient(){
@@ -269,6 +277,11 @@ void TxCode(uint16_t irSignal[]) {
   // Loop until we're reconnected
 
 void reconnect() {
+  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+    Serial.println("Connection Failed! Rebooting...");
+    delay(5000);
+    ESP.restart();
+  }
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
@@ -433,33 +446,72 @@ String getPage() {
   return webPage;
 }
 
+  // -----------------------------------------------------------------------------
+  // Alexa Operation Calls
+  // -----------------------------------------------------------------------------
+
+  void fauxmoCallback(uint8_t device_id, const char * device_name, bool state) {
+    Serial.printf("[MAIN] %s state: %s\n", device_name, state ? "ON" : "OFF");
+
+    if ( (strcmp(device_name, "TV") == 0) ) {
+      if (state) {
+        irsend.sendGC(Samsung_power_toggle, 71);
+      } else {
+        irsend.sendGC(Samsung_power_toggle, 71);
+      }
+    }
+/*
+    if ( (strcmp(device_name, "Youtube") == 0) ) {
+      // adjust the relay immediately!
+      if (state) {
+          //
+      } else {
+        //
+      }
+    }*/
+
+    if ( (strcmp(device_name, "Movie Nite") == 0) ) {
+      // adjust the relay immediately!
+      if (state) {
+        client.publish(mqttTopicTV, "Time for movie night");
+        irsend.sendNEC(rgbled.On, freq_strip);
+        delay(100);
+        irsend.sendNEC(rgbled.Green, freq_strip);
+      } else {
+        irsend.sendNEC(rgbled.Off, freq_strip);
+      }
+    }
+}
+
 
 // ----------------------------------------------------------------------------
 void loop() {
-  httpServer.handleClient();
-  timeClient.update();
-  if (timeClient.getFormattedTime() == "20:00:00"){
-    Serial.println("TV LED On!!!");
-    irsend.sendNEC(rgbled.On, freq_strip);
-    delay(500);
-  } else if (timeClient.getFormattedTime() == "22:00:00"){
-    Serial.println("TV LED Off!!!");
-    irsend.sendNEC(rgbled.Off, freq_strip);
-    delay(500);
-  } else if (timeClient.getFormattedTime() == "05:00:00"){
-    Serial.println("Switch to Metro FM!!!");
-    TxCode(NUM_8);
-    delay(500);
-    TxCode(NUM_0);
-    delay(500);
-    TxCode(NUM_1);
-    delay(500);
-  } else{
-    delay(0.01);
-  }
-  if (!client.connected()) {
-    reconnect();
-    delay(50);
-  }
-  client.loop();
+    httpServer.handleClient();
+    fauxmo.handle();
+    timeClient.update();
+    if (!client.connected()) {
+      reconnect();
+      delay(50);
+    }
+    client.loop();
+
+    if (timeClient.getFormattedTime() == "20:00:00"){
+      Serial.println("TV LED On!!!");
+      irsend.sendNEC(rgbled.On, freq_strip);
+      delay(500);
+    }
+    else if (timeClient.getFormattedTime() == "22:00:00"){
+      Serial.println("TV LED Off!!!");
+      irsend.sendNEC(rgbled.Off, freq_strip);
+      delay(500);
+    }
+    else if (timeClient.getFormattedTime() == "05:00:00"){
+      Serial.println("Switch to Metro FM!!!");
+      TxCode(NUM_8);
+      delay(500);
+      TxCode(NUM_0);
+      delay(500);
+      TxCode(NUM_1);
+      delay(500);
+    }
   }
