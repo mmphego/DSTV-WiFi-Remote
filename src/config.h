@@ -13,7 +13,7 @@
 #include <WiFiClient.h>
 #include <WiFiUdp.h>
 #include <NTPClient.h>
-#include "fauxmoESP.h"
+//#include "fauxmoESP.h"
 
 #ifndef config_h
 #define config_h
@@ -280,9 +280,14 @@ uint16_t DISCRETE_OFF[68] = {7988,3981,504,504,504,1486,504,1486,504,504,504,148
 #define freq                     38 //khz
 #define IRPin                    D2
 
-#define hostname                 "remote"
-#define ssid                     "GetUrOwnWiFi"
-#define password                 "Livhu300312"
+#define Hostname                 "remote"
+#define MySSID                   "GetUrOwnWiFi"
+#define MyWifiPassword           "Livhu300312"
+
+// Sinric /Alexa
+#define MyApiKey                 "5daa356d-9e57-40c5-af70-7253918e1cb6"
+#define SwitchId                 "5b2bf6ceb7999f5028aec718"
+#define LightId                  "5b2bf947be9b84559e81e488"
 
 #define mqtt_server              "192.168.1.11"
 #define mqttTopicTV              "/IRControl/TV"
@@ -292,10 +297,19 @@ uint16_t DISCRETE_OFF[68] = {7988,3981,504,504,504,1486,504,1486,504,504,504,148
 #define LEDStrip                 0
 #define mqttTopicAmbiLite        "/IRControl/AmbiLite"
 
-#define  MOVIETIME               "Movie Time"
+#define MOVIETIME                "Movie Time"
 #define YOUTUBE                  "Youtube"
-#define  TV                      "TV"
+#define TV                       "TV"
+
+// NTP Servers:
+#define ntpServerName            "ntp1.meraka.csir.co.za"
+
 #define JSON_BUF_SIZE            256
+
+#define HEARTBEAT_INTERVAL       300000 // 5 Minutes
+
+uint64_t heartbeatTimestamp = 0;
+bool isConnected = false;
 
 //byte xbmchost[] = {192,168,1,105};
 IPAddress xbmchost(192,168,1,105);
@@ -311,12 +325,7 @@ bool running = false;
 bool stopped = true;
 char msg[50];
 char message[65];
-// NTP Servers:
-static const char ntpServerName[] = "us.pool.ntp.org";
-//static const char ntpServerName[] = "time.nist.gov";
 
 const int timeZone = 2; // Jozi Time
-
 unsigned int localPort = 8888;  // local port to listen for UDP packets
-
 #endif

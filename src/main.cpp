@@ -1,5 +1,11 @@
 
 #include "config.h"
+#include <Arduino.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WiFiMulti.h>
+#include <WebSocketsClient.h> //  get it from https://github.com/Links2004/arduinoWebSockets/releases
+#include <ArduinoJson.h> // get it from https://arduinojson.org/ or install via Arduino library manager
+#include <StreamString.h>
 
 // Setup the ir pin
 IRsend irsend(IRPin);
@@ -10,7 +16,7 @@ RgbIrLed rgbled(LEDStrip);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-WiFiClient kodiclient;
+//WiFiClient kodiclient;
 
 // initialise webserver
 ESP8266WebServer httpServer(80);
@@ -23,9 +29,12 @@ WiFiUDP ntpUDP;
 // changed later with setTimeOffset() ). Additionaly you can specify the
 // update interval (in milliseconds, can be changed using setUpdateInterval() ).
 //NTPClient timeClient(ntpUDP, "us.pool.ntp.org", 3600, 60000);
-NTPClient timeClient(ntpUDP, "ntp1.meraka.csir.co.za", 7200, 60000);
+NTPClient timeClient(ntpUDP, ntpServerName, 7200, 60000);
 
-fauxmoESP fauxmo;
+//fauxmoESP fauxmo;
+ESP8266WiFiMulti WiFiMulti;
+WebSocketsClient webSocket;
+//WiFiClient client;
 
 // Function declaration
 void TxCode(uint16_t irSignal[68]);
@@ -33,45 +42,61 @@ void callback(char* topic, byte* payload, unsigned int length);
 void reconnect();
 void setupWebUpdater();
 void setupMQTTclient();
-void kodiRunning();
-void setPage();
-String getPage();
-void fauxmoCallback(uint8_t device_id, const char * device_name, bool state);
+void setupWebSockets();
+void turnOn(String deviceId);
+void turnOff(String deviceId);
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
+void checkTimer(String TimerUpdate);
+//void kodiRunning();
+//void setPage();
+//String getPage();
+//void fauxmoCallback(uint8_t device_id, const char * device_name, bool state);
 
 void setup() {
-  irsend.begin();
   Serial.begin(115200);
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  irsend.begin();
+  WiFiMulti.addAP(MySSID, MyWifiPassword);
+  Serial.println();
+  Serial.print("Connecting to Wifi: ");
+  Serial.println(MySSID);
 
-  // Static IP Setup Info Here...
-  WiFi.config(ip, dns, gateway, subnet);
-  //WiFi.mode(WIFI_STA);
-  // Start Server
-  WiFi.begin(ssid, password);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.println("Connection Failed! Rebooting...");
-    delay(5000);
-    ESP.restart();
+  // Waiting for Wifi connect
+  while(WiFiMulti.run() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
   }
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-  Serial.println("Starting UDP");
+  if(WiFiMulti.run() == WL_CONNECTED) {
+    Serial.println("");
+    Serial.print("WiFi connected. ");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+  }
   timeClient.begin();
-
+  setupWebSockets();
   setupWebUpdater();
   setupMQTTclient();
-  setPage();
-
-  // -----------------------------------------------------------------------------
-  // Alexa Device Names
-  // -----------------------------------------------------------------------------
-  // Fauxmo
-  fauxmo.addDevice("TV");
-  fauxmo.addDevice("Youtube");
-  fauxmo.addDevice("Movie Time");
-  fauxmo.onMessage(fauxmoCallback);
 }
+
+void loop() {
+  httpServer.handleClient();
+  if (!client.connected()) {
+    reconnect();
+    delay(50);
+  }
+  client.loop();
+  webSocket.loop();
+  if(isConnected) {
+      uint64_t now = millis();
+      // Send heartbeat in order to avoid disconnections during ISP resetting IPs over night. Thanks @MacSass
+      if((now - heartbeatTimestamp) > HEARTBEAT_INTERVAL) {
+          heartbeatTimestamp = now;
+          webSocket.sendTXT("H");
+        }
+      }
+  timeClient.update();
+  String TimerUpdate = timeClient.getFormattedTime();
+  checkTimer(TimerUpdate);
+  }
 
 void setupMQTTclient(){
   client.setServer(mqtt_server, 1883);
@@ -80,15 +105,41 @@ void setupMQTTclient(){
 
 void setupWebUpdater(){
   Serial.println("Setting up http updater!");
-  MDNS.begin(hostname);
+  MDNS.begin(Hostname);
   httpUpdater.setup(&httpServer);
   httpServer.begin();
   MDNS.addService("http", "tcp", 80);
 
-  Serial.printf("HTTPUpdateServer ready! Open http://%s.local/update in your browser\n", hostname);
+  Serial.printf("HTTPUpdateServer ready! Open http://%s.local/update in your browser\n", Hostname);
   Serial.println("Ready");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+}
+
+void checkTimer(String TimerUpdate ){
+  if (TimerUpdate == "20:00:00"){
+    Serial.println("TV LED On!!!");
+    irsend.sendNEC(rgbled.On, freq_strip);
+    delay(500);
+  }
+  else if (TimerUpdate == "22:00:00"){
+    Serial.println("TV LED Off!!!");
+    irsend.sendNEC(rgbled.Off, freq_strip);
+    delay(500);
+  }
+  else if (TimerUpdate == "05:00:00"){
+    Serial.println("Switch to Metro FM!!!");
+    TxCode(NUM_8);
+    delay(500);
+    TxCode(NUM_0);
+    delay(500);
+    TxCode(NUM_1);
+    delay(500);
+  }
+  /*else {
+    Serial.print("Current time is:");
+    Serial.println(TimerUpdate);
+  }*/
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -118,11 +169,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     TxCode(MUTE);
     delay(10);
     }
-/*  else if ((receivedData == "PP") || (receivedData == "PAUSE")) {
-    //Serial.println(receivedData);
-    //TxCode(PLAY_PAUSE);
-    delay(10);
-  }*/
+
   else if (receivedData == "TVOnOff") {
       Serial.println(receivedData);
       client.publish(mqttTopicTV, "Toggle TV On/Off");
@@ -277,241 +324,128 @@ void TxCode(uint16_t irSignal[]) {
   // Loop until we're reconnected
 
 void reconnect() {
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.println("Connection Failed! Rebooting...");
-    delay(5000);
-    ESP.restart();
-  }
-  while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (client.connect("ESP8266Client")) {
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      //client.publish("outTopic", "hello world");
-      // ... and resubscribe
-      client.subscribe(mqttTopicDStv);
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
+    while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+      Serial.println("Connection Failed! Rebooting...");
       delay(5000);
+      ESP.restart();
+    }
+    while (!client.connected()) {
+      Serial.print("Attempting MQTT connection...");
+      // Attempt to connect
+      if (client.connect("ESP8266Client")) {
+        Serial.println("connected");
+        // Once connected, publish an announcement...
+        //client.publish("outTopic", "hello world");
+        // ... and resubscribe
+        client.subscribe(mqttTopicDStv);
+      } else {
+        Serial.print("failed, rc=");
+        Serial.print(client.state());
+        Serial.println(" try again in 5 seconds");
+        // Wait 5 seconds before retrying
+        delay(5000);
+      }
     }
   }
+
+void setupWebSockets(){
+  // server address, port and URL
+  webSocket.begin("iot.sinric.com", 80, "/");
+  // event handler
+  webSocket.onEvent(webSocketEvent);
+  webSocket.setAuthorization("apikey", MyApiKey);
+  // try again every 5000ms if connection has failed
+  webSocket.setReconnectInterval(5000);   // If you see 'class WebSocketsClient' has no member named 'setReconnectInterval' error update arduinoWebSockets
+
 }
-/*
-// FOr KODI
-void kodiRunning() {
-  if (kodiclient.connect(xbmchost, 8080)){
-    kodiclient.setTimeout(1000);
-    kodiclient.print(F("GET /jsonrpc?request={\"jsonrpc\":\"2.0\",\"method\":\"Player.GetActivePlayers\", \"id\":1} HTTP/1.1"));
-    kodiclient.println(F("Host: XBMC"));
-    kodiclient.println(F("Connection: close"));
-    kodiclient.println();
+// deviceId is the ID assgined to your smart-home-device in sinric.com dashboard. Copy it from dashboard and paste it here
+void turnOn(String deviceId) {
+  if (deviceId == SwitchId) {// Device ID of first device
+    Serial.print("Turn on device id: ");
+    Serial.println(deviceId);
+    client.publish(mqttTopicTV, "Toggle TV On/Off");
+    irsend.sendGC(Samsung_power_toggle, 71);
+  }
+  else if (deviceId == LightId) {// Device ID of second device
+    Serial.print("Turn on device id: ");
+    Serial.println(deviceId);
+    client.publish(mqttTopicTV, "Time for movie night");
+    irsend.sendNEC(rgbled.On, freq_strip);
+    delay(100);
+    irsend.sendNEC(rgbled.Blue, freq_strip);
     delay(50);
-    char status[32] = {0};
-    kodiclient.readBytesUntil('\r', status, sizeof(status));
-    if (strcmp(status, "HTTP/1.1 200 OK") != 0) {
-      Serial.print(F("Unexpected response: "));
-      Serial.println(status);
-    }
-
-    // Skip HTTP headers
-    char endOfHeaders[] = "\r\n\r\n";
-    if (!kodiclient.find(endOfHeaders)) {
-      Serial.println(F("Invalid response"));
-      return;
-    }
-    // Allocate JsonBuffer
-    // Use arduinojson.org/assistant to compute the capacity.
-    const size_t capacity = JSON_OBJECT_SIZE(3) + JSON_ARRAY_SIZE(2) + 60;
-    DynamicJsonBuffer jsonBuffer(capacity);
-    // Parse JSON object
-    JsonObject& root = jsonBuffer.parseObject(kodiclient);
-    if (!root.success()) {
-      Serial.println(F("Parsing failed!"));
-      return;
-      }
-
-    // Debugging
-    //while(kodiclient.available()){
-      //String line = kodiclient.readString);
-    //  String line = kodiclient.readString();
-    //  Serial.print(line);
-    //}
-    if(root["result"].as<String>() != "[]"){
-      Serial.println("I guess it is Movie night");
-      irsend.sendNEC(rgbled.On, freq_strip);
-      delay(10);
-      irsend.sendNEC(rgbled.Blue, freq_strip);
-      running = true;
-      stopped = false;
-    }
-    Serial.println("Closing Kodi Client connection");
-    kodiclient.stop();
   }
   else {
-    kodiclient.stop();
+    Serial.print("Turn on for unknown device id: ");
+    Serial.println(deviceId);
+    client.publish(mqttTopicTV, "Time for Sleeping");
+    irsend.sendNEC(rgbled.Off, freq_strip);
   }
 }
-*/
 
-void setPage() {
-    if (mdns.begin("esp8266", WiFi.localIP())) {
-      Serial.println("MDNS responder started");
-      Serial.println(WiFi.localIP());
-    }
-
-    httpServer.on("/", [](){
-      httpServer.send(200, "text/html", getPage());
-    });
-    httpServer.on("/TVOnOff", [](){
-      irsend.sendGC(Samsung_power_toggle, 71);
-      Serial.printf("TV On/Off\n");
-      httpServer.send(200, "text/html", getPage());
-    });
-    httpServer.on("/TVLedOn", [](){
-      irsend.sendNEC(rgbled.On, freq_strip);
-      Serial.printf("LED Strip On");
-      httpServer.send(200, "text/html", getPage());
-    });
-    httpServer.on("/TVLedOff", [](){
-      irsend.sendNEC(rgbled.Off, freq_strip);
-      Serial.printf("LED Strip Off");
-      httpServer.send(200, "text/html", getPage());
-    });
-    httpServer.on("/5", [](){
-      httpServer.send(200, "text/html", getPage());
-    });
-      httpServer.on("/0", [](){
-      httpServer.send(200, "text/html", getPage());
-    });
-     httpServer.on("/A", [](){
-      httpServer.send(200, "text/html", getPage());
-    });
-      httpServer.on("/U", [](){
-      httpServer.send(200, "text/html", getPage());
-    });
-      httpServer.on("/D", [](){
-      httpServer.send(200, "text/html", getPage());
-    });
-    httpServer.on("/Modo", [](){
-      httpServer.send(200, "text/html", getPage());
-    });
-     httpServer.on("/Day", [](){
-      httpServer.send(200, "text/html", getPage());
-    });
-     httpServer.on("/update", [](){
-      httpServer.send(200, "text/html", getPage());
-    });
-
-    httpUpdater.setup(&httpServer);
-    httpServer.begin();
-    Serial.println("HTTP server started");
-    // we are connected
-    Serial.println();
-}
-
-String getPage() {
-  String webPage = "<link rel='stylesheet' href='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css' integrity=' sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u' crossorigin='anonymous'>";
-  webPage += "<script src='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js' integrity='sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa' crossorigin='anonymous'></script>";
-  webPage += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-  webPage += "<title>Living Room</title><link rel='icon' mask href='https://goo.gl/xhBrd8'>";
-  webPage += "<link rel='stylesheet' href='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css'>";
-  webPage += "<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css'>";
-  webPage += "<link href='https://fonts.googleapis.com/icon?family=Material+Icons' rel='stylesheet'>";
-  webPage += "<style>.bt{width:85%;}</style>";
-  webPage += "<style>.btx{width:15%;}.bta{width:33.3%;}.full{width:100%;}.half{width:50%;}</style>";
-  webPage += "<div class='container-fluid'><center>";
-  webPage += "<a href='TVOnOff'><button class='btn btn-primary bta'><h2>TV On/Off </i></h2></button></a>";
-  webPage += "<a href='TVLedOn'><button class='btn btn-primary bta'><h2>Movie Nite </i></h2></button></a>";
-  webPage += "<a href='TVLedOff'><button class='btn btn-primary bta'><h2>No Movie Nite</i></h2></button></a>";
-  /*
-  webPage += "<a href='0'><button class='btn btn-primary bta'><h2>OFF </h2></button></a>";
-  webPage += "<a href='3'><button class='btn btn-primary bta'><h2>3</h2></button></a>";
-  webPage += "<a href='5'><button class='btn btn-primary bta'><h2>5 </h2></button></a>";
-  webPage += "<a href='0'><button class='btn btn-primary bta'><h2>OFF </h2></button></a>";
-  webPage += "<a href='3'><button class='btn btn-primary bta'><h2>3</h2></button></a>";
-  webPage += "<a href='5'><button class='btn btn-primary bta'><h2>5 </h2></button></a>";
-  webPage += "<a href='3'><button class='btn btn-primary bta'><h2>3</h2></button></a>";
-  webPage += "<a href='5'><button class='btn btn-primary bta'><h2>5 </h2></button></a>";
-  webPage += "<a href='0'><button class='btn btn-primary bta'><h2>OFF </h2></button></a>";
-  webPage += "<a href='3'><button class='btn btn-primary bta'><h2>3</h2></button></a>";
-  webPage += "<a href='5'><button class='btn btn-primary bta'><h2>5 </h2></button></a>";
-  webPage += "<a href='0'><button class='btn btn-primary bta'><h2>OFF </h2></button></a>";
-  */
-  webPage += "<a href='update'><button class='btn btn-danger bta'><h2>update</h2></button></a>";
-  webPage += "</center></div>";
-  return webPage;
-}
-
-  // -----------------------------------------------------------------------------
-  // Alexa Operation Calls
-  // -----------------------------------------------------------------------------
-
-  void fauxmoCallback(uint8_t device_id, const char * device_name, bool state) {
-    Serial.printf("[MAIN] %s state: %s\n", device_name, state ? "ON" : "OFF");
-
-    if ( (strcmp(device_name, "TV") == 0) ) {
-      if (state) {
-        irsend.sendGC(Samsung_power_toggle, 71);
-      } else {
-        irsend.sendGC(Samsung_power_toggle, 71);
-      }
-    }
-/*
-    if ( (strcmp(device_name, "Youtube") == 0) ) {
-      // adjust the relay immediately!
-      if (state) {
-          //
-      } else {
-        //
-      }
-    }*/
-
-    if ( (strcmp(device_name, "Movie Nite") == 0) ) {
-      // adjust the relay immediately!
-      if (state) {
-        client.publish(mqttTopicTV, "Time for movie night");
-        irsend.sendNEC(rgbled.On, freq_strip);
-        delay(100);
-        irsend.sendNEC(rgbled.Green, freq_strip);
-      } else {
-        irsend.sendNEC(rgbled.Off, freq_strip);
-      }
-    }
-}
-
-
-// ----------------------------------------------------------------------------
-void loop() {
-    httpServer.handleClient();
-    fauxmo.handle();
-    timeClient.update();
-    if (!client.connected()) {
-      reconnect();
-      delay(50);
-    }
-    client.loop();
-
-    if (timeClient.getFormattedTime() == "20:00:00"){
-      Serial.println("TV LED On!!!");
-      irsend.sendNEC(rgbled.On, freq_strip);
-      delay(500);
-    }
-    else if (timeClient.getFormattedTime() == "22:00:00"){
-      Serial.println("TV LED Off!!!");
-      irsend.sendNEC(rgbled.Off, freq_strip);
-      delay(500);
-    }
-    else if (timeClient.getFormattedTime() == "05:00:00"){
-      Serial.println("Switch to Metro FM!!!");
-      TxCode(NUM_8);
-      delay(500);
-      TxCode(NUM_0);
-      delay(500);
-      TxCode(NUM_1);
-      delay(500);
-    }
+void turnOff(String deviceId) {
+   if (deviceId == SwitchId) { // Device ID of first device
+     Serial.print("Turn off Device ID: ");
+     Serial.println(deviceId);
+     client.publish(mqttTopicTV, "Toggle TV On/Off");
+     irsend.sendGC(Samsung_power_toggle, 71);
+   }
+   else if (deviceId == LightId) { // Device ID of second device
+     Serial.print("Turn off Device ID: ");
+     Serial.println(deviceId);
   }
+  else {
+     Serial.print("Turn off for unknown device id: ");
+     Serial.println(deviceId);
+  }
+}
+
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+  switch(type) {
+    case WStype_DISCONNECTED:
+      isConnected = false;
+      Serial.printf("[WSc] Webservice disconnected from sinric.com!\n");
+      break;
+    case WStype_CONNECTED: {
+      isConnected = true;
+      Serial.printf("[WSc] Service connected to sinric.com at url: %s\n", payload);
+      Serial.printf("Waiting for commands from sinric.com ...\n");
+      }
+      break;
+    case WStype_TEXT: {
+        Serial.printf("[WSc] get text: %s\n", payload);
+        // Example payloads
+
+        // For Switch or Light device types
+        // {"deviceId": xxxx, "action": "setPowerState", value: "ON"} // https://developer.amazon.com/docs/device-apis/alexa-powercontroller.html
+
+        // For Light device type
+        // Look at the light example in github
+
+        DynamicJsonBuffer jsonBuffer;
+        JsonObject& json = jsonBuffer.parseObject((char*)payload);
+        String deviceId = json ["deviceId"];
+        String action = json ["action"];
+
+        if(action == "setPowerState") { // Switch or Light
+            String value = json ["value"];
+            if(value == "ON") {
+                turnOn(deviceId);
+            } else {
+                turnOff(deviceId);
+            }
+        }
+        else if (action == "test") {
+            Serial.println("[WSc] received test command from sinric.com");
+        }
+      }
+      break;
+    case WStype_BIN:
+      Serial.printf("[WSc] get binary length: %u\n", length);
+      break;
+
+    default:
+      Serial.printf("[Wsc] Defaulting");
+      break;
+  }
+}
