@@ -34,7 +34,7 @@
 #define MyWifiPassword           "Livhu300312"
 
 // Sinric /Alexa
-#define MyApiKey                 
+#define MyApiKey                
 #define SwitchId                 
 #define LightId                  
 
