@@ -1,3 +1,4 @@
+#include <string.h>
 #include "config.h"
 
 // Setup the ir pin
@@ -28,6 +29,8 @@ void turnOn(String deviceId);
 void turnOff(String deviceId);
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
 void WakeOnLan(byte mac[]);
+void send_defined_code(char* function_name);
+
 
 void setup() {
   Serial.begin(115200);
@@ -54,11 +57,11 @@ void setup() {
 
 void loop() {
   httpServer.handleClient();
+  client.loop();
   if (!client.connected()) {
     reconnect();
-    delay(50);
+    delay(1000);
   }
-  client.loop();
   webSocket.loop();
   if(isConnected) {
       uint64_t now = millis();
@@ -95,13 +98,17 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived from topic: [");
   Serial.print(topic);
   Serial.println("]");
+  //Serial.print(payload);
   for (uint16_t i = 0; i < length; i++) {
     receivedChar[i] = payload[i];
     }
+  Serial.print("ReceivedChar: ");
   Serial.println(receivedChar);
+  Serial.println();
   String receivedData = receivedChar;
-  client.publish(mqttTopicLog, "[/DSTV/log] Volume Increased");
+/*
   if (receivedData == "VOL_PLUS") {
+    client.publish(mqttTopicLog, "[/DSTV/log] Volume Increased");
     for (uint16_t i = 0; i < 5; i++) {
       TxCode(VOL_PLUS);
       delay(10);
@@ -140,18 +147,36 @@ void callback(char* topic, byte* payload, unsigned int length) {
      TxCode(P_MINUS);
      delay(500);
      }
-  else if (receivedData.length() == 3) {
-   if (receivedData == "161") {
+     */
+  // else if (receivedData.length() == 3) {
+  if (receivedData.length() == 3) {
+      Serial.print("Received: ");
+      //if (receivedData == "000") {
+          for(int i=0;i<=3;i++){
+            // int test = receivedData[i];
+            //char* text;
+            //text += i;
+            //Serial.print(receivedData[i]);
+            //delay(500);
+            //Serial.println(ir_codes[i].function_name);
+
+            Serial.print("ir code function name: ");
+            Serial.println(receivedData[i]);
+            //Serial.println();
+          //  send_defined_code(text);
+        //  }
+
+      }
      // Mzanzi Magic 161
-     client.publish(mqttTopicLog, "[/DSTV/log] Channel 161");
-     TxCode(NUM_1);
-     delay(500);
-     TxCode(NUM_6);
-     delay(500);
-     TxCode(NUM_1);
-     delay(500);
+     // client.publish(mqttTopicLog, "[/DSTV/log] Channel 161");
+     // TxCode(NUM_1);
+     // delay(500);
+     // TxCode(NUM_6);
+     // delay(500);
+     // TxCode(NUM_1);
+     // delay(500);
      }
-   else if (receivedData == "191") {
+  /* else if (receivedData == "191") {
 
      client.publish(mqttTopicLog, "[/DSTV/log] Channel 191");
      TxCode(NUM_1);
@@ -241,11 +266,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
      delay(500);
      TxCode(NUM_1);
      delay(500);
-     }
+   }
    else Serial.println("Error: Access denied");
    }
   else Serial.println("Error: Access denied");
-
+*/
   // Clearing all characters receiver previously.
   for (uint16_t i = 0; i < sizeof(receivedChar);  ++i ) {
     receivedChar[i] = (char)0;
@@ -385,5 +410,16 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     default:
       Serial.printf("[Wsc] Defaulting");
       break;
+  }
+}
+
+void send_defined_code(char* function_name) {
+  for( int i = 0; i < num_codes; i++) {
+     if ((function_name, ir_codes[i].function_name) == 0) {
+       Serial.print(F(" Function name:"));
+       Serial.print(ir_codes[i].function_name);
+       delay(500);
+        // return;
+     }
   }
 }
