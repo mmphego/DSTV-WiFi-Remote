@@ -302,7 +302,7 @@ void turnOn(String deviceId) {
     client.publish(mqttTopic, "[ESP8266-IRremote-Alexa] TV LEDs On");
     irsend.sendNEC(rgbled.On, freq_strip);
     delay(100);
-    irsend.sendNEC(rgbled.Blue, freq_strip);
+    irsend.sendNEC(rgbled.Green, freq_strip);
     delay(50);
   }
   else {
