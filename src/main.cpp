@@ -1,4 +1,5 @@
 #include "config.h"
+#include "tokens.h"
 
 // Setup the ir pin
 IRsend irsend(IRPin);

@@ -20,8 +20,7 @@
 //#include "fauxmoESP.h"
 
 #ifndef config_h
-#define config_h
-
+  #define config_h
 
 #define freq_strip               32 //khz
 #define freq                     38 //khz
@@ -33,10 +32,8 @@
 #define MySSID                   "GetUrOwnWiFi"
 #define MyWifiPassword           "Livhu300312"
 
+// TODO: Read keys from file
 // Sinric /Alexa
-#define MyApiKey                
-#define SwitchId                 
-#define LightId                  
 
 #define mqtt_server              "192.168.1.11"
 #define mqttTopic                "/IRControl"
@@ -52,8 +49,6 @@
 
 #define JSON_BUF_SIZE            256
 #define HEARTBEAT_INTERVAL       300000 // 5 Minutes
-
-
 
 // SAMSUNG POWER ON/OFF
 uint16_t Samsung_power_toggle[71] = {38000,1,1,170,170,20,63,20,63,20,63,20,20,20,20,20,
@@ -276,7 +271,7 @@ uint16_t DISCRETE_OFF[68] = {7988,3981,504,504,504,1486,504,1486,504,504,504,148
 
 
 // NETWORK: Static IP details...
-IPAddress ip(192, 168, 1, 15);
+IPAddress ip(192, 168, 1, 45);
 IPAddress gateway(192, 168, 1, 1);
 IPAddress dns(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
