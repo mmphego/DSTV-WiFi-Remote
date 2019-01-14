@@ -1,4 +1,4 @@
-.PHONY: install build upload clean help
+.PHONY: install build upload clean help superclean
 
 help:
 	@echo "Please use 'make <target>' where <target> is one of"
@@ -20,3 +20,6 @@ upload:
 
 clean:
 	@platformio run -t clean
+
+superclean: clean
+	@rm -rf .pioenvs .piolibdeps
