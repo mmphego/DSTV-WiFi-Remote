@@ -10,7 +10,7 @@ help:
 install:
 	@pip install --user -U platformio
 	@platformio update
-	@platformio lib -g install 1089 1826 305 549 5509 551 64 89
+	@platformio lib -g install 1089 1092 1826 305 549 5509 551 64 89 798
 
 build:
 	@platformio run
