@@ -27,16 +27,16 @@
 # language: python
 # python:
 #     - "2.7"
-#
+
 # sudo: false
 # cache:
 #     directories:
 #         - "~/.platformio"
-#
+
 # install:
 #     - pip install -U platformio
 #     - platformio update
-#
+
 # script:
 #     - platformio run
 
@@ -45,23 +45,36 @@
 # Template #2: The project is intended to by used as a library with examples
 #
 
-# language: python
-# python:
-#     - "2.7"
-#
-# sudo: false
-# cache:
-#     directories:
-#         - "~/.platformio"
-#
-# env:
-#     - PLATFORMIO_CI_SRC=path/to/test/file.c
-#     - PLATFORMIO_CI_SRC=examples/file.ino
-#     - PLATFORMIO_CI_SRC=path/to/test/directory
-#
-# install:
-#     - pip install -U platformio
-#     - platformio update
-#
-# script:
-#     - platformio ci --lib="." --board=ID_1 --board=ID_2 --board=ID_N
+language: python
+python:
+    - "2.7"
+
+sudo: false
+cache:
+    directories:
+        - "~/.platformio"
+
+install:
+    - pip install -U platformio
+    - platformio update
+
+    # Libraries from PlatformIO Library Registry:
+    #
+    # https://platformio.org/lib/show/1089/IRremoteESP8266
+    # https://platformio.org/lib/show/1826/AsyncTCP
+    # https://platformio.org/lib/show/305/ESPAsyncTCP
+    # https://platformio.org/lib/show/549/WebSockets
+    # https://platformio.org/lib/show/5509/SinricClass
+    # https://platformio.org/lib/show/551/NTPClient
+    # https://platformio.org/lib/show/64/ArduinoJson
+    # https://platformio.org/lib/show/89/PubSubClient
+    - platformio lib -g install 1089 1826 305 549 5509 551 64 89
+
+    # Libraries from GitHub Library:
+    #
+    # Install LED strip library
+    - wget https://github.com/mmphego/RGB-IR-Led-ESP8266/archive/master.zip -O /tmp/rgbirled.zip
+    - unzip /tmp/rgbirled.zip -d /tmp
+
+script:
+  - platformio ci --lib="." --lib="/tmp/RGB-IR-Led-ESP8266-master/" --board=d1_mini src
