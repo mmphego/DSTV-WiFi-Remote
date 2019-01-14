@@ -1,4 +1,5 @@
 # esp8266 based DSTV A6 IRremote
+[![Build Status](https://travis-ci.com/mmphego/DSTV-WiFi-Remote.svg?branch=master)](https://travis-ci.com/mmphego/DSTV-WiFi-Remote)
 Control your DSTV and TV(Samsung) via WiFi or Amazon Alexa with an esp8266.
 
 # Circuit
@@ -15,6 +16,10 @@ I resorted to using [MQTT Dash](https://play.google.com/store/apps/details?id=ne
 # Future Development
 Integrate to my [Node-Red Dashboard](https://nodered.org/) running on a network media server.
 -->
+
+## Usage
+
+Coming soon!
 
 ## Feedback
 
