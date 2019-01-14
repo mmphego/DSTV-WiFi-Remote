@@ -14,7 +14,6 @@ install:
 
 build:
 	@platformio run
-	@docker stop sonarqube || true
 
 upload:
 	@platformio run --target upload
