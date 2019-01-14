@@ -16,6 +16,10 @@ I resorted to using [MQTT Dash](https://play.google.com/store/apps/details?id=ne
 Integrate to my [Node-Red Dashboard](https://nodered.org/) running on a network media server.
 -->
 
+## Usage
+
+Coming soon!
+
 ## Feedback
 
 Feel free to fork it or send me PR to improve it.
