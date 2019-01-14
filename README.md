@@ -20,7 +20,27 @@ Integrate to my [Node-Red Dashboard](https://nodered.org/) running on a network 
 
 ## Usage
 
-Coming soon!
+- **Help**
+
+```bash
+make help
+```
+
+- **Install libraries**
+
+```bash
+make install
+```
+
+- **Compiling Clang code**
+```bash
+make build
+```
+
+- **Upload bin to device**
+```bash
+make upload
+```
 
 ## Feedback
 
