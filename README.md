@@ -1,4 +1,6 @@
 # esp8266 based DSTV A6 IRremote
+[![Build Status](https://travis-ci.com/mmphego/DSTV-A6-esp8266-IRremote.svg?branch=master)](https://travis-ci.com/mmphego/DSTV-A6-esp8266-IRremote)
+
 Control your DSTV and TV(Samsung) via WiFi or Amazon Alexa with an esp8266.
 
 # Circuit
