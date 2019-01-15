@@ -27,7 +27,31 @@ make help
 ```
 
 - **Install libraries**
+If planning on using Travis CI, you will need to install [travis-client.rb](https://github.com/travis-ci/travis.rb) via [docker](https://github.com/mmphego/my-dockerfiles/tree/master/travis-client) or gems.
 
+```bash
+# Optional
+sudo apt-get install ruby ruby-dev
+sudo gem install -n /usr/local/bin travis
+travis login --com # Login with your GitHub credentials
+# [secure]
+travis env set tokens "#ifndef tokens_h \n #define tokens_h \n \n #define MyApiKey    \"YOUR TOKEN\" \n #define SwitchId    \"YOUR ID\" \n #define LightId     \"YOUR ID\" \n \n #endif" --com
+```
+
+[Not Secure]
+or create a src/tokens.h and copy in your credentials.
+```
+#ifndef tokens_h
+  #define tokens_h
+
+#define MyApiKey
+#define SwitchId
+#define LightId
+
+#endif
+```
+
+Now we need to install platformio and all its dependencies.
 ```bash
 make install
 ```
