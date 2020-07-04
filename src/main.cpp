@@ -1,4 +1,5 @@
 #include "config.h"
+// This file contains your Sinric API tokens
 #include "tokens.h"
 
 // Setup the ir pin
@@ -78,16 +79,16 @@ void setupMQTTclient(){
 
 void setupWebUpdater(){
   Serial.println("Setting up http updater!");
-  client.publish(mqttTopicLog,"[ESP8266-IRremote] Setting up http updater!");
+  client.publish(mqttTopicLog,"[ESP8266-WiFi-Remote] Setting up http updater!");
   MDNS.begin(Hostname);
   httpUpdater.setup(&httpServer);
   httpServer.begin();
   MDNS.addService("http", "tcp", 80);
 
   Serial.printf("HTTPUpdateServer ready! Open http://%s.local/update in your browser\n", Hostname);
-  client.publish(mqttTopicLog, "[ESP8266-IRremote] HTTPUpdateServer ready! Open http://Hostname.local/update in your browser\n");
+  client.publish(mqttTopicLog, "[ESP8266-WiFi-Remote] HTTPUpdateServer ready! Open http://Hostname.local/update in your browser\n");
   Serial.println("Ready");
-  client.publish(mqttTopicLog, "[ESP8266-IRremote] Ready");
+  client.publish(mqttTopicLog, "[ESP8266-WiFi-Remote] Ready");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 }
@@ -262,7 +263,7 @@ void reconnect() {
    if (client.connect("ESP8266Client")) {
      Serial.println("connected");
      // Once connected, publish an announcement...
-     //client.publish("outTopic", "hello world");
+     client.publish(mqttTopicLog, "Connected to MQTT host");
      // ... and resubscribe
      client.subscribe(mqttTopicDStv);
      }
@@ -277,9 +278,11 @@ void reconnect() {
 }
 
 void TxCode(uint16_t irSignal[]) {
-  Serial.println("TX IR Signal");
+  Serial.println("Sending IR Signal. . .");
   irsend.sendRaw(irSignal, 68, freq);
   delay(500);
+  client.publish(mqttTopicLog, "[ESP8266-WiFi-Remote] IR Tx code sent!!!");
+
 }
 
 void setupWebSockets(){
@@ -296,15 +299,18 @@ void setupWebSockets(){
 // deviceId is the ID assgined to your smart-home-device in sinric.com dashboard. Copy it from dashboard and paste it here
 void turnOn(String deviceId) {
   if (deviceId == SwitchId) {// Device ID of first device
-    client.publish(mqttTopic, "[ESP8266-IRremote-Alexa] Toggle TV On/Off");
+    client.publish(mqttTopic, "[ESP8266-WiFi-Remote-Alexa] Toggle TV On/Off");
     irsend.sendGC(Samsung_power_toggle, 71);
+    client.publish(mqttTopicLog, "[ESP8266-WiFi-Remote] ACK!");
+
   }
   else if (deviceId == LightId) {// Device ID of second device
-    client.publish(mqttTopic, "[ESP8266-IRremote-Alexa] TV LEDs On");
+    client.publish(mqttTopic, "[ESP8266-WiFi-Remote-Alexa] TV LEDs On");
     irsend.sendNEC(rgbled.On, freq_strip);
     delay(100);
     irsend.sendNEC(rgbled.Green, freq_strip);
     delay(50);
+    client.publish(mqttTopicLog, "[ESP8266-WiFi-Remote] ACK!");
   }
   else {
     Serial.print("Turn on for unknown device id: ");
@@ -314,11 +320,11 @@ void turnOn(String deviceId) {
 
 void turnOff(String deviceId) {
    if (deviceId == SwitchId) { // Device ID of first device
-     client.publish(mqttTopic, "[ESP8266-IRremote-Alexa] Toggle TV On/Off");
+     client.publish(mqttTopic, "[ESP8266-WiFi-Remote-Alexa] Toggle TV On/Off");
      irsend.sendGC(Samsung_power_toggle, 71);
    }
    else if (deviceId == LightId) { // Device ID of second device
-     client.publish(mqttTopic, "[ESP8266-IRremote-Alexa] TV LEDs OFF");
+     client.publish(mqttTopic, "[ESP8266-WiFi-Remote-Alexa] TV LEDs OFF");
      irsend.sendNEC(rgbled.Off, freq_strip);
   }
   else {
@@ -332,7 +338,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     case WStype_DISCONNECTED:
       isConnected = false;
       Serial.printf("[WSc] Webservice disconnected from sinric.com!\n");
-      client.publish(mqttTopicLog, "[WSc] Webservice disconnected from sinric.com!\n");
+      client.publish(mqttTopicLog, "[ESP8266->Host] Webservice disconnected from sinric.com!\n");
       break;
     case WStype_CONNECTED: {
       isConnected = true;
@@ -362,10 +368,13 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
               Serial.print("Turn on device id: ");
               Serial.println(deviceId);
               turnOn(deviceId);
+              client.publish(mqttTopicLog, "[ESP8266-WiFi-Remote] device turned On!");
+
             } else {
               Serial.print("Turn off device id: ");
               Serial.println(deviceId);
               turnOff(deviceId);
+              client.publish(mqttTopicLog, "[ESP8266-WiFi-Remote] device turned Off!");
             }
         }
         else if (action == "ChangeChannel") {
